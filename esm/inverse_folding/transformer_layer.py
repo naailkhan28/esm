@@ -91,12 +91,12 @@ class TransformerEncoderLayer(nn.Module):
 
         residual = x
         x = self.self_attn_layer_norm(x)
-        x, _ = self.self_attn(
+        x, attn_weights = self.self_attn(
             query=x,
             key=x,
             value=x,
             key_padding_mask=encoder_padding_mask,
-            need_weights=False,
+            need_weights=True,
             attn_mask=attn_mask,
         )
         x = self.dropout_module(x)
@@ -108,7 +108,7 @@ class TransformerEncoderLayer(nn.Module):
         x = self.fc2(x)
         x = self.dropout_module(x)
         x = self.residual_connection(x, residual)
-        return x
+        return x, attn_weights
 
 
 class TransformerDecoderLayer(nn.Module):
