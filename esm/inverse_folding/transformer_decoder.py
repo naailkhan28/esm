@@ -179,7 +179,9 @@ class TransformerDecoder(nn.Module):
         self_attn_padding_mask: Optional[Tensor] = None
         if prev_output_tokens.eq(self.padding_idx).any():
             self_attn_padding_mask = prev_output_tokens.eq(self.padding_idx)
-
+            
+        all_layer_attentions = []
+        
         # decoder layers
         attn: Optional[Tensor] = None
         inner_states: List[Optional[Tensor]] = [x]
@@ -195,11 +197,10 @@ class TransformerDecoder(nn.Module):
                 padding_mask,
                 incremental_state,
                 self_attn_mask=self_attn_mask,
-                self_attn_padding_mask=self_attn_padding_mask,
-                need_attn=False,
-                need_head_weights=False,
+                self_attn_padding_mask=self_attn_padding_mask
             )
             inner_states.append(x)
+            all_layer_attentions.append(layer_attn)
 
         if self.layer_norm is not None:
             x = self.layer_norm(x)
@@ -207,7 +208,7 @@ class TransformerDecoder(nn.Module):
         # T x B x C -> B x C x T
         x = x.transpose(0, 1)
 
-        return x, {"inner_states": inner_states}
+        return x, {"inner_states": inner_states, "decoder_attention_weights": all_layer_attentions}
 
     def output_layer(self, features):
         """Project features to the vocabulary size."""
