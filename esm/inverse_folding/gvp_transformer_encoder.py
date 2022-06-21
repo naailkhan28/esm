@@ -163,7 +163,9 @@ class GVPTransformerEncoder(nn.Module):
 
         if return_all_hiddens:
             encoder_states.append(x)
-
+        
+        all_attention_weights = []
+        
         # encoder layers
         for layer in self.layers:
             x, attn_weights = layer(
@@ -172,7 +174,7 @@ class GVPTransformerEncoder(nn.Module):
             if return_all_hiddens:
                 assert encoder_states is not None
                 encoder_states.append(x)
-                encoder_states.append(attn_weights)
+                all_attention_weights.append(attn_weights)
 
         if self.layer_norm is not None:
             x = self.layer_norm(x)
@@ -182,4 +184,5 @@ class GVPTransformerEncoder(nn.Module):
             "encoder_padding_mask": [encoder_padding_mask],  # B x T
             "encoder_embedding": [encoder_embedding],  # dictionary
             "encoder_states": encoder_states,  # List[T x B x C]
+            "encoder_attention_weights": all_attention_weights 
         }
