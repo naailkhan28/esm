@@ -96,7 +96,7 @@ class TransformerEncoderLayer(nn.Module):
             key=x,
             value=x,
             key_padding_mask=encoder_padding_mask,
-            need_weights=True,
+            need_head_weights=True,
             attn_mask=attn_mask,
         )
         x = self.dropout_module(x)
