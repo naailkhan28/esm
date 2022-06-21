@@ -20,7 +20,7 @@ setup(
     long_description=readme,
     long_description_content_type="text/markdown",
     author="Facebook AI Research",
-    url="https://github.com/facebookresearch/esm",
+    url="https://github.com/naailkhan28/esm",
     license="MIT",
     packages=["esm", "esm/inverse_folding"],
     data_files=[("source_docs/esm", ["LICENSE", "README.md", "CODE_OF_CONDUCT.rst"])],
