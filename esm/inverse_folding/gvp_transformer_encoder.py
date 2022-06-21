@@ -166,12 +166,13 @@ class GVPTransformerEncoder(nn.Module):
 
         # encoder layers
         for layer in self.layers:
-            x = layer(
+            x, attn_weights = layer(
                 x, encoder_padding_mask=encoder_padding_mask
             )
             if return_all_hiddens:
                 assert encoder_states is not None
                 encoder_states.append(x)
+                encoder_states.append(attn_weights)
 
         if self.layer_norm is not None:
             x = self.layer_norm(x)
