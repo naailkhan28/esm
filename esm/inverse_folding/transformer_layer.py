@@ -250,7 +250,7 @@ class TransformerDecoderLayer(nn.Module):
         _self_attn_input_buffer = self.self_attn._get_input_buffer(incremental_state)
         y = x
 
-        x, attn = self.self_attn(
+        x, self_attn = self.self_attn(
             query=x,
             key=y,
             value=y,
@@ -258,6 +258,7 @@ class TransformerDecoderLayer(nn.Module):
             incremental_state=incremental_state,
             need_weights=False,
             attn_mask=self_attn_mask,
+            need_head_weights=need_head_weights
         )
         x = self.dropout_module(x)
         x = self.residual_connection(x, residual)
@@ -276,7 +277,7 @@ class TransformerDecoderLayer(nn.Module):
                 assert incremental_state is not None
                 self.encoder_attn._set_input_buffer(incremental_state, saved_state)
 
-            x, attn = self.encoder_attn(
+            x, cross_attn = self.encoder_attn(
                 query=x,
                 key=encoder_out,
                 value=encoder_out,
@@ -300,4 +301,4 @@ class TransformerDecoderLayer(nn.Module):
         if self.w_resid is not None:
             residual = torch.mul(self.w_resid, residual)
         x = self.residual_connection(x, residual)
-        return x, attn, None
+        return x, self_attn, cross_attn, None
