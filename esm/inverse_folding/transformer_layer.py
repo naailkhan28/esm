@@ -78,6 +78,7 @@ class TransformerEncoderLayer(nn.Module):
 
         Returns:
             encoded output of shape `(seq_len, batch, embed_dim)`
+            encoder self-attention weights of shape `(num_heads, batch, seq_len, seq_len)`
         """
         # anything in original attn_mask = 1, becomes -1e8
         # anything in original attn_mask = 0, becomes 0
