@@ -411,6 +411,7 @@ class MultiheadAttention(nn.Module):
         
         
         self.save_attn(attn_weights)
+        attn_weights.retain_grad()
         attn_weights.register_hook(self.save_attn_gradients)
         
         return attn, attn_weights
