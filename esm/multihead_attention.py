@@ -127,6 +127,21 @@ class MultiheadAttention(nn.Module):
             self.enable_torch_version = True
         else:
             self.enable_torch_version = False
+        
+        self.attn = None
+        self.attn_gradients = None
+    
+    def save_attn(self, attn):
+        self.attn = attn
+
+    def get_attn(self):
+        return self.attn
+
+    def save_attn_gradients(self, attn_gradients):
+        self.attn_gradients = attn_gradients
+
+    def get_attn_gradients(self):
+        return self.attn_gradients
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
@@ -393,7 +408,11 @@ class MultiheadAttention(nn.Module):
             if not need_head_weights:
                 # average attention weights over heads
                 attn_weights = attn_weights.mean(dim=0)
-
+        
+        
+        self.save_attn(attn_weights)
+        attn_weights.register_hook(self.save_attn_gradients)
+        
         return attn, attn_weights
 
     @staticmethod
