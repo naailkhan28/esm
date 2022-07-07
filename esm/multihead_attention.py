@@ -412,6 +412,7 @@ class MultiheadAttention(nn.Module):
         
         self.save_attn(attn_weights)
         attn_weights.register_hook(self.save_attn_gradients)
+        print("Hook Registered!")
         
         return attn, attn_weights
 
