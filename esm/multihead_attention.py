@@ -414,7 +414,7 @@ class MultiheadAttention(nn.Module):
         if need_weights:
             attn_weights = attn_weights.view(
                 bsz, self.num_heads, tgt_len, src_len
-            ).transpose(1, 0)
+            )
             if not need_head_weights:
                 # average attention weights over heads
                 attn_weights = attn_weights.mean(dim=0)
