@@ -130,6 +130,9 @@ class MultiheadAttention(nn.Module):
         
         self.attn = None
         self.attn_gradients = None
+        self.saved_q = None
+        self.saved_k = None
+        self.saved_v = None
     
     def save_attn(self, attn):
         self.attn = attn
@@ -142,6 +145,14 @@ class MultiheadAttention(nn.Module):
 
     def get_attn_gradients(self):
         return self.attn_gradients
+    
+    def save_qkv(self, q, k, v):
+        self.saved_q = q
+        self.saved_k = k
+        self.saved_v = v
+    
+    def get_qkv(self):
+        return self.saved_q, self.saved_k, self.saved_v
 
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
@@ -360,7 +371,8 @@ class MultiheadAttention(nn.Module):
                     ],
                     dim=1,
                 )
-
+        
+        self.save_qkv(q, k, v)
         attn_weights = torch.bmm(q, k.transpose(1, 2))
         
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
