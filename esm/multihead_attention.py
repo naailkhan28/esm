@@ -362,7 +362,6 @@ class MultiheadAttention(nn.Module):
                 )
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
-        assert attn_weights.is_leaf, "Attention weights tensor is not in compute graph at time of creation"
         
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
 
@@ -371,7 +370,6 @@ class MultiheadAttention(nn.Module):
             if self.onnx_trace:
                 attn_mask = attn_mask.repeat(attn_weights.size(0), 1, 1)
             attn_weights = attn_weights + attn_mask
-            assert attn_weights.is_leaf, "Attention weights tensor is not in compute graph when being masked"
 
         if key_padding_mask is not None:
             # don't attend to padding symbols
@@ -380,19 +378,17 @@ class MultiheadAttention(nn.Module):
                 key_padding_mask.unsqueeze(1).unsqueeze(2).to(torch.bool), float("-inf")
             )
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
-            assert attn_weights.is_leaf, "Attention weights tensor is not in compute graph when padding tokens are masked"
 
         if before_softmax:
             return attn_weights, v
 
         attn_weights = utils_softmax(attn_weights, dim=-1, onnx_trace=self.onnx_trace).type_as(attn_weights)
-        assert attn_weights.is_leaf, "Attention weights tensor is not in compute graph after softmax"
         attn_weights = F.dropout(
             attn_weights,
             p=self.dropout,
             training=self.training,
         )
-        assert attn_weights.is_leaf, "Attention weights tensor is not in compute graph after dropout"
+        
         assert v is not None
         attn = torch.bmm(attn_weights, v)
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
@@ -407,18 +403,15 @@ class MultiheadAttention(nn.Module):
             attn_weights = attn_weights.view(
                 bsz, self.num_heads, tgt_len, src_len
             ).transpose(1, 0)
-            assert attn_weights.is_leaf, "Attention weights tensor is not in compute graph after output processing"
             if not need_head_weights:
                 # average attention weights over heads
                 attn_weights = attn_weights.mean(dim=0)
-                assert attn_weights.is_leaf, "Attention weights tensor is not in compute graph when averaging"
         
         
         self.save_attn(attn_weights)
         
         attn_weights.retain_grad()
         attn_weights.register_hook(self.save_attn_gradients)
-        assert attn_weights.is_leaf, "Attention weights tensor is not in compute graph before returning"
         
         return attn, attn_weights
 
