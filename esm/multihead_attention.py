@@ -362,7 +362,6 @@ class MultiheadAttention(nn.Module):
                 )
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
-        attn_weights.retain_grad()
 
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
 
@@ -384,13 +383,13 @@ class MultiheadAttention(nn.Module):
             return attn_weights, v
 
         attn_weights = utils_softmax(attn_weights, dim=-1, onnx_trace=self.onnx_trace).type_as(attn_weights)
-        attn_probs = F.dropout(
+        attn_weights = F.dropout(
             attn_weights,
             p=self.dropout,
             training=self.training,
         )
         assert v is not None
-        attn = torch.bmm(attn_probs, v)
+        attn = torch.bmm(attn_weights, v)
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
         if self.onnx_trace and attn.size(1) == 1:
             # when ONNX tracing a single decoder step (sequence length == 1)
@@ -409,6 +408,8 @@ class MultiheadAttention(nn.Module):
         
         
         self.save_attn(attn_weights)
+        
+        attn_weights.retain_grad()
         attn_weights.register_hook(self.save_attn_gradients)
         
         return attn, attn_weights
