@@ -362,7 +362,7 @@ class MultiheadAttention(nn.Module):
                 )
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
-        attn_weights = attn_weights.retain_grad()
+        attn_weights.retain_grad()
 
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
 
