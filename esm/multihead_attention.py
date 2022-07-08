@@ -362,7 +362,6 @@ class MultiheadAttention(nn.Module):
                 )
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
-        attn_weights = MultiheadAttention.apply_sparse_mask(attn_weights, tgt_len, src_len, bsz)
 
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
 
@@ -383,10 +382,9 @@ class MultiheadAttention(nn.Module):
         if before_softmax:
             return attn_weights, v
 
-        attn_weights_float = utils_softmax(attn_weights, dim=-1, onnx_trace=self.onnx_trace)
-        attn_weights = attn_weights_float.type_as(attn_weights)
+        attn_weights = utils_softmax(attn_weights, dim=-1, onnx_trace=self.onnx_trace).type_as(attn_weights)
         attn_probs = F.dropout(
-            attn_weights_float.type_as(attn_weights),
+            attn_weights,
             p=self.dropout,
             training=self.training,
         )
@@ -401,7 +399,7 @@ class MultiheadAttention(nn.Module):
             attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
         attn = self.out_proj(attn)
         if need_weights:
-            attn_weights = attn_weights_float.view(
+            attn_weights = attn_weights.view(
                 bsz, self.num_heads, tgt_len, src_len
             ).transpose(1, 0)
             if not need_head_weights:
@@ -484,9 +482,6 @@ class MultiheadAttention(nn.Module):
         buffer: Dict[str, Optional[Tensor]],
     ):
         return self.set_incremental_state(incremental_state, "attn_state", buffer)
-
-    def apply_sparse_mask(attn_weights, tgt_len: int, src_len: int, bsz: int):
-        return attn_weights
 
     def upgrade_state_dict_named(self, state_dict, name):
         prefix = name + "." if name != "" else ""
