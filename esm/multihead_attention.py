@@ -142,6 +142,14 @@ class MultiheadAttention(nn.Module):
 
     def save_attn_gradients(self, attn_gradients):
         self.attn_gradients = attn_gradients
+        print("Hook called!")
+        if attn_gradients is not None:
+            print(f"Gradients shape:{attn_gradients.shape}")
+        elif attn_gradients is None:
+            print(f"Missing gradients -_-")
+        else:
+            print("Something else went wrong, here are the gradients:")
+            print(attn_gradients)
 
     def get_attn_gradients(self):
         return self.attn_gradients
