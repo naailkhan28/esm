@@ -500,6 +500,11 @@ class MultiheadAttention(nn.Module):
             training=self.training,
         )
         
+        self.save_attn(attn_weights)
+        
+        attn_weights.retain_grad()
+        attn_weights.register_hook(self.save_attn_gradients)
+
         assert v is not None
         #attn = torch.bmm(attn_weights, v)
         attn = self.einsum2([attn_weights, v])
@@ -518,12 +523,6 @@ class MultiheadAttention(nn.Module):
             if not need_head_weights:
                 # average attention weights over heads
                 attn_weights = attn_weights.mean(dim=0)
-        
-        
-        self.save_attn(attn_weights)
-        
-        attn_weights.retain_grad()
-        attn_weights.register_hook(self.save_attn_gradients)
         
         return attn, attn_weights
 
