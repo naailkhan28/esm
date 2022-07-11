@@ -20,94 +20,6 @@ def utils_softmax(x, dim: int, onnx_trace: bool = False):
     else:
         return F.softmax(x, dim=dim, dtype=torch.float32)
 
-def safe_divide(a, b):
-    den = b.clamp(min=1e-9) + b.clamp(max=1e-9)
-    den = den + den.eq(0).type(den.type()) * 1e-9
-    return a / den * b.ne(0).type(b.type())
-
-def forward_hook(self, input, output):
-    if len(input) == 0:
-        return
-    if type(input[0]) in (list, tuple):
-        self.X = []
-        for i in input[0]:
-            x = i.detach()
-            x.requires_grad = True
-            self.X.append(x)
-    else:
-        self.X = input[0].detach()
-        self.X.requires_grad = True
-
-    self.Y = output
-
-
-def backward_hook(self, grad_input, grad_output):
-    self.grad_input = grad_input
-    self.grad_output = grad_output
-
-class RelProp(nn.Module):
-    def __init__(self):
-        super(RelProp, self).__init__()
-        # if not self.training:
-        self.register_forward_hook(forward_hook)
-
-    def gradprop(self, Z, X, S):
-        C = torch.autograd.grad(Z, X, S, retain_graph=True)
-        return C
-
-    def relprop(self, R, alpha):
-        return R
-
-    def RAP_relprop(self, R_p):
-        return R_p
-
-
-class RelPropSimple(RelProp):
-    def relprop(self, R, alpha):
-        Z = self.forward(self.X)
-        S = safe_divide(R, Z)
-        C = self.gradprop(Z, self.X, S)
-
-        if torch.is_tensor(self.X) == False:
-            outputs = []
-            outputs.append(self.X[0] * C[0])
-            outputs.append(self.X[1] * C[1])
-        else:
-            outputs = self.X * (C[0])
-        return outputs
-
-    def RAP_relprop(self, R_p):
-        def backward(R_p):
-            Z = self.forward(self.X)
-            Sp = safe_divide(R_p, Z)
-
-            Cp = self.gradprop(Z, self.X, Sp)[0]
-            if torch.is_tensor(self.X) == False:
-                Rp = []
-                Rp.append(self.X[0] * Cp)
-                Rp.append(self.X[1] * Cp)
-            else:
-                Rp = self.X * (Cp)
-            return Rp
-
-        if torch.is_tensor(R_p) == False:
-            idx = len(R_p)
-            tmp_R_p = R_p
-            Rp = []
-            for i in range(idx):
-                Rp_tmp = backward(tmp_R_p[i])
-                Rp.append(Rp_tmp)
-        else:
-            Rp = backward(R_p)
-        return Rp
-
-class einsum(RelPropSimple):
-    def __init__(self, equation):
-        super().__init__()
-        self.equation = equation
-    def forward(self, *operands):
-        return torch.einsum(self.equation, *operands)
-
 class FairseqIncrementalState(object):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -220,9 +132,6 @@ class MultiheadAttention(nn.Module):
         self.saved_q = None
         self.saved_k = None
         self.saved_v = None
-
-        self.einsum1 = einsum('bid,bjd->bij')
-        self.einsum2 = einsum('bij,bjd->bid')
     
     def save_attn(self, attn):
         self.attn = attn
@@ -232,14 +141,6 @@ class MultiheadAttention(nn.Module):
 
     def save_attn_gradients(self, attn_gradients):
         self.attn_gradients = attn_gradients
-        print("Hook called!")
-        if attn_gradients is not None:
-            print(f"Gradients shape:{attn_gradients.shape}")
-        elif attn_gradients is None:
-            print(f"Missing gradients -_-")
-        else:
-            print("Something else went wrong, here are the gradients:")
-            print(attn_gradients)
 
     def get_attn_gradients(self):
         return self.attn_gradients
@@ -471,8 +372,7 @@ class MultiheadAttention(nn.Module):
                 )
         
         self.save_qkv(q, k, v)
-        #attn_weights = torch.bmm(q, k.transpose(1, 2))
-        attn_weights = self.einsum1([q, k])
+        attn_weights = torch.bmm(q, k.transpose(1, 2))
         
         assert list(attn_weights.size()) == [bsz * self.num_heads, tgt_len, src_len]
 
@@ -506,8 +406,7 @@ class MultiheadAttention(nn.Module):
         attn_weights.register_hook(self.save_attn_gradients)
 
         assert v is not None
-        #attn = torch.bmm(attn_weights, v)
-        attn = self.einsum2([attn_weights, v])
+        attn = torch.bmm(attn_weights, v)
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
         if self.onnx_trace and attn.size(1) == 1:
             # when ONNX tracing a single decoder step (sequence length == 1)
