@@ -9,6 +9,7 @@ import torch
 from torch import nn
 from torch import Tensor
 import torch.nn.functional as F
+import torch.utils.checkpoint.checkpoint
 from scipy.spatial import transform
 
 from esm.data import Alphabet
@@ -78,6 +79,25 @@ class GVPTransformerModel(nn.Module):
         encoder_out = self.encoder(coords, padding_mask, confidence,
             return_all_hiddens=return_all_hiddens)
         logits, extra = self.decoder(
+            prev_output_tokens,
+            encoder_out=encoder_out,
+            features_only=features_only,
+            return_all_hiddens=return_all_hiddens,
+        )
+        return logits, extra
+    
+    def forward_with_checkpointing(
+        self,
+        coords,
+        padding_mask,
+        confidence,
+        prev_output_tokens,
+        return_all_hiddens: bool = False,
+        features_only: bool = False,
+    ):
+        encoder_out = self.encoder(coords, padding_mask, confidence,
+            return_all_hiddens=return_all_hiddens)
+        logits, extra = checkpoint(self.decoder,
             prev_output_tokens,
             encoder_out=encoder_out,
             features_only=features_only,
