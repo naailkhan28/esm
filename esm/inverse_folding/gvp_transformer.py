@@ -9,7 +9,7 @@ import torch
 from torch import nn
 from torch import Tensor
 import torch.nn.functional as F
-import torch.utils.checkpoint.checkpoint
+from torch.utils.checkpoint import checkpoint
 from scipy.spatial import transform
 
 from esm.data import Alphabet
