@@ -109,7 +109,7 @@ class GVPTransformerModel(nn.Module):
         
         return logits, extra
     
-    def sample(self, coords, temperature=1.0, confidence=None):
+    def sample(self, coords, temperature=1.0, confidence=None, device=None):
         """
         Samples sequences based on multinomial sampling (no beam search).
 
@@ -123,11 +123,12 @@ class GVPTransformerModel(nn.Module):
         # Convert to batch format
         batch_converter = CoordBatchConverter(self.decoder.dictionary)
         batch_coords, confidence, _, _, padding_mask = (
-            batch_converter([(coords, confidence, None)])
+            batch_converter([(coords, confidence, None)], device=device)
         )
         
         # Start with prepend token
         sampled_tokens = torch.zeros(1, 1+L, dtype=int)
+        sampled_tokens = sampled_tokens.to(device)
         sampled_tokens[0, 0] = self.decoder.dictionary.get_idx('<cath>')
             
         # Save incremental states for faster sampling
