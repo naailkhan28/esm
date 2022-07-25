@@ -257,9 +257,9 @@ class GVPTransformerModel(nn.Module):
                 logits = logits[0].transpose(0, 1)
                 logits /= temperature
                 probs = F.softmax(logits, dim=-1)
-                sorted_probabilities, indices = torch.sort(probs, descending=True)
+                probabilities, indices = torch.topk(probs, beam_size)
 
-                for residue, probability in zip(indices[0], sorted_probabilities[0]):
+                for residue, probability in zip(indices[0], probabilities[0, :beam_size]):
                     new_beam_tensor = prev_tokens
                     new_beam_tensor[:, i] = residue
                     new_log_prob = log_prob + torch.log(probability)
