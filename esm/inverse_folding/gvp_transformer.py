@@ -276,6 +276,6 @@ class GVPTransformerModel(nn.Module):
         out_seqs = []
 
         for key, (tokens, log_prob) in beams.items():
-            out_seqs.append(''.join([self.decoder.dictionary.get_tok(a) for a in tokens]))
+            out_seqs.append(''.join([self.decoder.dictionary.get_tok(a) for a in tokens[0, 1:]]))
 
         return(out_seqs)
