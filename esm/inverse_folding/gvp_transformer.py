@@ -236,7 +236,7 @@ class GVPTransformerModel(nn.Module):
 
         for idx, (residue, probability) in enumerate(zip(indices[0], values[0])):
             beam_starting_tensor = starting_tokens
-            beam_starting_tensor[1] = residue
+            beam_starting_tensor[0, 1] = residue
             beams[idx] = (beam_starting_tensor, torch.log(probability))
         
         #Decode one token at a time, across all beams
