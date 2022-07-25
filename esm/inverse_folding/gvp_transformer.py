@@ -181,7 +181,7 @@ class GVPTransformerModel(nn.Module):
 
         mask_idx = self.decoder.dictionary.get_idx('<mask>')
         # Decode one token at a time
-        for i in range(1, starting_tokens.shape[1]+1):
+        for i in range(1, starting_tokens.shape[1]):
             if starting_tokens[0, i] != mask_idx:
                 continue
             logits, _ = self.decoder(
@@ -204,7 +204,7 @@ class GVPTransformerModel(nn.Module):
         
         mask_idx = self.decoder.dictionary.get_idx('<mask>')
         # Decode one token at a time
-        for i in range(1, starting_tokens.shape[1]+1):
+        for i in range(1, starting_tokens.shape[1]):
             if starting_tokens[0, i] != mask_idx:
                 continue
             logits, _ = self.decoder(
@@ -227,7 +227,7 @@ class GVPTransformerModel(nn.Module):
 
         mask_idx = self.decoder.dictionary.get_idx('<mask>')
         # Decode one token at a time
-        for i in range(1, starting_tokens.shape[1]+1):
+        for i in range(1, starting_tokens.shape[1]):
             if starting_tokens[0, i] != mask_idx:
                 continue
             logits, _ = self.decoder(
@@ -247,10 +247,10 @@ class GVPTransformerModel(nn.Module):
     def nucleus_sample(self, coords, k, partial_seq=None, confidence=None, device=None, temperature=1, p=0.92):
 
         starting_tokens, encoder_out, incremental_state = self.prep_for_sample(coords, partial_seq, confidence, device)
-        
+
         mask_idx = self.decoder.dictionary.get_idx('<mask>')
         # Decode one token at a time
-        for i in range(1, starting_tokens.shape[1]+1):
+        for i in range(1, starting_tokens.shape[1]):
             if starting_tokens[0, i] != mask_idx:
                 continue
             logits, _ = self.decoder(
