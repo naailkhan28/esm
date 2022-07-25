@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import argparse
+from secrets import token_urlsafe
 from typing import Any, Dict, List, Optional, Tuple, NamedTuple
 import torch
 from torch import nn
@@ -212,3 +213,67 @@ class GVPTransformerModel(nn.Module):
         
         # Convert back to string via lookup
         return ''.join([self.decoder.dictionary.get_tok(a) for a in sampled_seq])
+
+    
+    def beam_sample(self, coords, beam_size, partial_seq=None, confidence=None, device=None, temperature=1):
+
+        starting_tokens, encoder_out, incremental_state = self.prep_for_sample(coords, partial_seq, confidence, device)
+
+        #Beams are stored as a dictionary of tuples
+        #Keys are integer indices, tuples contain the tensor itself and its log probability
+        beams = {}
+
+        #Initialize beams with the most likely first tokens
+        logits, _ = self.decoder(
+                starting_tokens[:, :1], 
+                encoder_out,
+                incremental_state=incremental_state,
+            )
+        logits = logits[0].transpose(0, 1)
+        logits /= temperature
+        probs = F.softmax(logits, dim=-1)
+        values, indices = torch.topk(probs, k=beam_size)
+
+        for idx, (residue, probability) in enumerate(zip(indices[0], values[0])):
+            beam_starting_tensor = starting_tokens
+            beam_starting_tensor[1] = residue
+            beams[idx] = (beam_starting_tensor, torch.log(probability))
+        
+        #Decode one token at a time, across all beams
+        for i in range(2, starting_tokens.shape[1]):
+            
+            #Store all possible beams at this step in a dictionary for retrieval later
+            all_possible_beams = {}
+
+            for beam in beams.keys():
+
+                prev_tokens = beams[beam][0]
+                log_prob = beams[beam][1]
+                logits, _ = self.decoder(
+                prev_tokens[:, :i], 
+                encoder_out,
+                incremental_state=incremental_state)
+
+                logits = logits[0].transpose(0, 1)
+                logits /= temperature
+                probs = F.softmax(logits, dim=-1)
+                sorted_probabilities, indices = torch.sort(probs, descending=True)
+
+                for residue, probability in zip(indices[0], sorted_probabilities[0]):
+                    new_beam_tensor = prev_tokens
+                    new_beam_tensor[:, i] = residue
+                    new_log_prob = log_prob + torch.log(probability)
+
+                    all_possible_beams[new_log_prob] = new_beam_tensor
+
+            sorted_beams = dict(sorted(all_possible_beams.items(), reverse=True))[:5]
+
+            for beam, (log_probability, tokens) in enumerate(sorted_beams.items()):
+                beams[beam] = (tokens, log_probability)
+        
+        out_seqs = []
+
+        for key, (tokens, log_prob) in beams.items():
+            out_seqs.append(''.join([self.decoder.dictionary.get_tok(a) for a in tokens]))
+
+        return(out_seqs)
