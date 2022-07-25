@@ -244,7 +244,7 @@ class GVPTransformerModel(nn.Module):
         # Convert back to string via lookup
         return ''.join([self.decoder.dictionary.get_tok(a) for a in sampled_seq])
     
-    def nucleus_sample(self, coords, k, partial_seq=None, confidence=None, device=None, temperature=1, p=0.92):
+    def nucleus_sample(self, coords, partial_seq=None, confidence=None, device=None, temperature=1, p=0.92):
 
         starting_tokens, encoder_out, incremental_state = self.prep_for_sample(coords, partial_seq, confidence, device)
 
