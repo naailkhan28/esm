@@ -105,10 +105,10 @@ def get_atom_coords_residuewise(atoms: List[str], struct: biotite.structure.Atom
     return biotite.structure.apply_residue_wise(struct, struct, filterfn)
 
 
-def get_sequence_loss(model, alphabet, coords, seq):
+def get_sequence_loss(model, alphabet, coords, seq, device):
     batch_converter = CoordBatchConverter(alphabet)
     batch = [(coords, None, seq)]
-    coords, confidence, strs, tokens, padding_mask = batch_converter(batch)
+    coords, confidence, strs, tokens, padding_mask = batch_converter(batch, device=device)
     
     prev_output_tokens = tokens[:, :-1]
     target = tokens[:, 1:]
@@ -120,8 +120,8 @@ def get_sequence_loss(model, alphabet, coords, seq):
     return loss, target_padding_mask
 
 
-def score_sequence(model, alphabet, coords, seq):
-    loss, target_padding_mask = get_sequence_loss(model, alphabet, coords, seq)
+def score_sequence(model, alphabet, coords, seq, device=None):
+    loss, target_padding_mask = get_sequence_loss(model, alphabet, coords, seq, device)
     ll_fullseq = -np.sum(loss * ~target_padding_mask) / np.sum(~target_padding_mask)
     # Also calculate average when excluding masked portions
     coord_mask = np.all(np.isfinite(coords), axis=(-1, -2))
