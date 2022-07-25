@@ -115,8 +115,8 @@ def get_sequence_loss(model, alphabet, coords, seq, device):
     target_padding_mask = (target == alphabet.padding_idx)
     logits, _ = model.forward(coords, padding_mask, confidence, prev_output_tokens)
     loss = F.cross_entropy(logits, target, reduction='none')
-    loss = loss[0].detach().numpy()
-    target_padding_mask = target_padding_mask[0].numpy()
+    loss = loss[0].detach().cpu().numpy()
+    target_padding_mask = target_padding_mask[0].cpu().numpy()
     return loss, target_padding_mask
 
 
