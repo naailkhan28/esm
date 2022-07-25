@@ -266,9 +266,11 @@ class GVPTransformerModel(nn.Module):
 
                     all_possible_beams[new_log_prob] = new_beam_tensor
 
-            sorted_beams = dict(sorted(all_possible_beams.items(), reverse=True))[:5]
+            sorted_beams = dict(sorted(all_possible_beams.items(), reverse=True))
 
             for beam, (log_probability, tokens) in enumerate(sorted_beams.items()):
+                if beam == beam_size:
+                    break
                 beams[beam] = (tokens, log_probability)
         
         out_seqs = []
