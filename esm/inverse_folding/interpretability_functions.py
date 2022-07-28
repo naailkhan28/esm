@@ -142,7 +142,7 @@ def get_averaged_bhattacharyya_distances(model, alphabet, sampled_sequence, devi
   distances = {}
 
   for j in range(1, len(sampled_sequence)+1):
-    if i % 10 == 0:
+    if j % 10 == 0:
       print(f"Residue {j} / {len(sampled_sequence+1)}")
     
     masked_coords, native_seq = extract_coords_from_structure(structure)
