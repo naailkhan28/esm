@@ -1,6 +1,7 @@
+from multiprocessing.spawn import prepare
 import torch
-from esm.inverse_folding.util import CoordBatchConverter
-
+import numpy as np
+from esm.inverse_folding.util import CoordBatchConverter, extract_coords_from_structure
 
 def get_encoder_attributions(model, input_coords):
   #Use autocast to switch to float16 and save memory   
@@ -86,23 +87,31 @@ def get_decoder_relevancy_matrix(model, logits, input_coords, Rii):
     Rqi = (Rqi - Rqi.min()) / (Rqi.max() - Rqi.min())
     return Rqi
 
+def prepare_previous_tokens(alphabet, sampled_sequence, sequence_position, device):
+    #We use our generated sequence as the input to the decoder
+    #We also need to prepend a <cath> token
+    tokenized_sequence = torch.tensor([alphabet.get_idx(residue) for residue in sampled_sequence])
+    cath_token = torch.tensor([alphabet.get_idx('<cath>')])
+
+    prev_tokens = torch.cat((cath_token, tokenized_sequence), 0)
+    prev_tokens = prev_tokens.unsqueeze(0)
+    prev_tokens = prev_tokens[:, :sequence_position+1]
+    prev_tokens = prev_tokens.to(device)
+    return prev_tokens
+
+def get_model_inputs(alphabet, coords, device):
+    #The coordinates extracted from the PDB file need to be processed by the Batch Converter to get them into the correct format
+    batch_converter = CoordBatchConverter(alphabet)
+    batch = [(coords, None, None)]
+    input_coords, confidence, _, _, padding_mask = batch_converter(batch, device=device)
+    return input_coords, confidence, padding_mask
+
 #Get relevancy matrix for a given position in a sampled sequence with respect to an input structure
 def get_sequence_position_attributions(model, alphabet, sampled_sequence, sequence_position, coords, device):
 
-  #We use our generated sequence as the input to the decoder
-  #We also need to prepend a <cath> token
-  tokenized_sequence = torch.tensor([alphabet.get_idx(residue) for residue in sampled_sequence])
-  cath_token = torch.tensor([alphabet.get_idx('<cath>')])
+  prev_tokens = prepare_previous_tokens(alphabet, sampled_sequence, sequence_position, device)
 
-  prev_tokens = torch.cat((cath_token, tokenized_sequence), 0)
-  prev_tokens = prev_tokens.unsqueeze(0)
-  prev_tokens = prev_tokens[:, :sequence_position+1]
-  prev_tokens = prev_tokens.to(device)
-
-  #The coordinates extracted from the PDB file need to be processed by the Batch Converter to get them into the correct format
-  batch_converter = CoordBatchConverter(alphabet)
-  batch = [(coords, None, None)]
-  input_coords, confidence, _, _, padding_mask = batch_converter(batch, device=device)
+  input_coords, confidence, padding_mask = get_model_inputs(alphabet, coords, device)
 
   #Forward pass through the model - use autocast to switch to float16 and save memory
   with torch.autocast("cuda"):
@@ -125,3 +134,51 @@ def get_sequence_position_attributions(model, alphabet, sampled_sequence, sequen
   Rqi = get_decoder_relevancy_matrix(model, logits, input_coords, encoder_relevancy_matrix)
 
   return(Rqi)
+
+def bhattacharya(p, q):
+	return -1 * np.log(sum([np.sqrt(p[i] * q[i]) for i in range(len(p))]))
+
+def get_averaged_bhattacharyya_distances(model, alphabet, sampled_sequence, device, structure, descending=False):
+  distances = {}
+
+  for j in range(1, len(sampled_sequence)+1):
+    if i % 10 == 0:
+      print(f"Residue {j} / {len(sampled_sequence+1)}")
+    
+    masked_coords, native_seq = extract_coords_from_structure(structure)
+
+    sequence_position = j
+    
+    Rqi = get_sequence_position_attributions(model, alphabet, sampled_sequence, sequence_position, masked_coords, device)
+    relevancies = Rqi[-1][1:-1]
+    values, indices = torch.sort(relevancies, descending=descending)
+
+    prev_tokens = prepare_previous_tokens(alphabet, sampled_sequence, sequence_position, device)
+    input_coords, confidence, padding_mask = get_model_inputs(alphabet, masked_coords, device)
+
+    #Forward pass through the model - use autocast to switch to float16 and save memory
+    with torch.autocast("cuda"):
+      logits, _ = model.forward(input_coords, padding_mask, confidence, prev_tokens)
+
+    probs = torch.nn.functional.softmax(logits, dim=-1)
+    wt_probs = probs[-1].to("cpu").detach().numpy()
+
+    distances[j] = {}
+
+    for i, residue in enumerate(indices):
+
+      masked_coords[residue.item(), :] = float("inf")
+
+      #The coordinates extracted from the PDB file need to be processed by the Batch Converter to get them into the correct format
+      masked_input_coords, masked_confidence, masked_padding_mask = get_model_inputs(alphabet, masked_coords, device)
+
+      #Forward pass through the model - use autocast to switch to float16 and save memory
+      with torch.autocast("cuda"):
+        logits, _ = model.forward(masked_input_coords, masked_padding_mask, masked_confidence, prev_tokens)
+
+      masked_probs = torch.nn.functional.softmax(logits, dim=-1)
+      masked_probs = masked_probs[-1].to("cpu").detach().numpy()
+
+      distances[j][i+1] = bhattacharya(wt_probs[0], masked_probs[0])
+    
+  return(distances)
