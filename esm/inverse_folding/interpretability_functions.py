@@ -221,12 +221,14 @@ def get_averaged_bhattacharyya_distances_padding_mask(model, alphabet, sampled_s
 
     for i, residue in enumerate(indices):
 
+      padding_mask[0, residue+1] = True
+
       #The coordinates extracted from the PDB file need to be processed by the Batch Converter to get them into the correct format
-      masked_input_coords, masked_confidence, masked_padding_mask = get_model_inputs_with_padding(alphabet, masked_coords, residue+1, device)
+      masked_input_coords, masked_confidence, _ = get_model_inputs(alphabet, masked_coords, device)
 
       #Forward pass through the model - use autocast to switch to float16 and save memory
       with torch.autocast("cuda"):
-        logits, _ = model.forward(masked_input_coords, masked_padding_mask, masked_confidence, prev_tokens)
+        logits, _ = model.forward(masked_input_coords, padding_mask, masked_confidence, prev_tokens)
 
       masked_probs = torch.nn.functional.softmax(logits, dim=-1)
       masked_probs = masked_probs[-1].to("cpu").detach().numpy()
