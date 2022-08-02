@@ -223,26 +223,27 @@ class GVPTransformerModel(nn.Module):
         #Keys are integer indices, tuples contain the tensor itself and its log probability
         beams = {}
 
-        #Initialize beams with the most likely first tokens
-        logits, _ = self.decoder(
+        #Get the most likely starting tokens
+        initial_logits, _ = self.decoder(
                 starting_tokens[:, :1], 
                 encoder_out,
                 incremental_state=incremental_state,
             )
-        logits = logits[0].transpose(0, 1)
-        logits /= temperature
-        probs = F.softmax(logits, dim=-1)
+        initial_logits = initial_logits[0].transpose(0, 1)
+        initial_logits /= temperature
+        probs = torch.nn.functional.softmax(initial_logits, dim=-1)
         values, indices = torch.topk(probs, k=beam_size)
 
+        #Initialize beams with each of the different starting tokens
         for idx, (residue, probability) in enumerate(zip(indices[0], values[0])):
-            beam_starting_tensor = starting_tokens
+            beam_starting_tensor = starting_tokens.clone()
             beam_starting_tensor[0, 1] = residue
             beams[idx] = (beam_starting_tensor, torch.log(probability))
         
         #Decode one token at a time, across all beams
         for i in range(2, starting_tokens.shape[1]):
             
-            #Store all possible beams at this step in a dictionary for retrieval later
+            #Store all possible beams at this step in a dictionary
             all_possible_beams = {}
 
             for beam in beams.keys():
@@ -256,16 +257,18 @@ class GVPTransformerModel(nn.Module):
 
                 logits = logits[0].transpose(0, 1)
                 logits /= temperature
-                probs = F.softmax(logits, dim=-1)
+                probs = torch.nn.functional.softmax(logits, dim=-1)
                 probabilities, indices = torch.topk(probs, beam_size)
 
-                for residue, probability in zip(indices[0], probabilities[0, :beam_size]):
-                    new_beam_tensor = prev_tokens
+                #Store each possible beam in the all_possible_beams dictionary, with its key being the log probability 
+                for residue, probability in zip(indices[0, :beam_size], probabilities[0, :beam_size]):
+                    new_beam_tensor = prev_tokens.clone()
                     new_beam_tensor[:, i] = residue
                     new_log_prob = log_prob + torch.log(probability)
 
                     all_possible_beams[new_log_prob] = new_beam_tensor
-
+            
+            #Sort by keys (log probabilities) and add the top scoring beams to our initial beams dictionary
             sorted_beams = dict(sorted(all_possible_beams.items(), reverse=True))
 
             for beam, (log_probability, tokens) in enumerate(sorted_beams.items()):
@@ -273,9 +276,14 @@ class GVPTransformerModel(nn.Module):
                     break
                 beams[beam] = (tokens, log_probability)
         
-        out_seqs = []
 
-        for key, (tokens, log_prob) in beams.items():
-            out_seqs.append(''.join([self.decoder.dictionary.get_tok(a) for a in tokens[0, 1:]]))
+        #Finally, pick the most likely beam by log probability and return it as an amino acid sequence
+        log_probs = []
 
-        return(out_seqs[0])
+        for beam, (tokens, log_prob) in beams.items():
+          log_probs.append(torch.tensor([log_prob]))
+        
+        
+        tokens = beams[torch.argmax(torch.cat(log_probs)).item()][0]
+
+        return("".join([self.decoder.dictionary.get_tok(a) for a in tokens[0, 1:]]))
