@@ -196,7 +196,7 @@ def get_averaged_bhattacharyya_distances_padding_mask(model, alphabet, sampled_s
   distances = {}
 
   percentage_values = torch.tensor(percentage_values)
-  masking_indices = torch.round(percentage_values * len(sampled_sequence))
+  masking_indices = torch.round(percentage_values * len(sampled_sequence)).to(torch.long)
 
   for j in range(1, len(sampled_sequence)+1):
     if j % 10 == 0:
@@ -222,10 +222,9 @@ def get_averaged_bhattacharyya_distances_padding_mask(model, alphabet, sampled_s
 
     distances[j] = {}
 
-    for percentage, masking_index in zip(percentage_values.tolist(), masking_indices.tolist()):
-      
-      mask_locations = relevancy_indices[:masking_index]
-      padding_mask[0].index_fill_(0, mask_locations, True)
+    for percentage, masking_index in zip(percentage_values, masking_indices):
+  
+      padding_mask[0][relevancy_indices[:masking_index]] = True
 
       #The coordinates extracted from the PDB file need to be processed by the Batch Converter to get them into the correct format
       masked_input_coords, masked_confidence, _ = get_model_inputs(alphabet, masked_coords, device)
