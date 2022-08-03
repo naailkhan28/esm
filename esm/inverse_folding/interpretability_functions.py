@@ -196,7 +196,7 @@ def get_averaged_bhattacharyya_distances_padding_mask(model, alphabet, sampled_s
   distances = {}
 
   percentage_values = torch.tensor(percentage_values)
-  masking_indices = int(percentage_values * len(sampled_sequence))
+  masking_indices = torch.round(percentage_values * len(sampled_sequence))
 
   for j in range(1, len(sampled_sequence)+1):
     if j % 10 == 0:
