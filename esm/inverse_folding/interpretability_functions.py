@@ -192,8 +192,11 @@ def get_averaged_bhattacharyya_distances(model, alphabet, sampled_sequence, devi
   return(distances)
 
 
-def get_averaged_bhattacharyya_distances_padding_mask(model, alphabet, sampled_sequence, device, structure, descending=False):
+def get_averaged_bhattacharyya_distances_padding_mask(model, alphabet, sampled_sequence, device, structure, percentage_values, descending=False):
   distances = {}
+
+  percentage_values = torch.tensor(percentage_values)
+  masking_indices = int(percentage_values * len(sampled_sequence))
 
   for j in range(1, len(sampled_sequence)+1):
     if j % 10 == 0:
@@ -205,7 +208,7 @@ def get_averaged_bhattacharyya_distances_padding_mask(model, alphabet, sampled_s
     
     Rqi = get_sequence_position_attributions(model, alphabet, sampled_sequence, sequence_position, masked_coords, device)
     relevancies = Rqi[-1][1:-1]
-    values, indices = torch.sort(relevancies, descending=descending)
+    relevancy_values, relevancy_indices = torch.sort(relevancies, descending=descending)
 
     prev_tokens = prepare_previous_tokens(alphabet, sampled_sequence, sequence_position, device)
     input_coords, confidence, padding_mask = get_model_inputs(alphabet, masked_coords, device)
@@ -219,9 +222,9 @@ def get_averaged_bhattacharyya_distances_padding_mask(model, alphabet, sampled_s
 
     distances[j] = {}
 
-    for i, residue in enumerate(indices):
+    for percentage, masking_index in zip(percentage_values, masking_indices):
 
-      padding_mask[0, residue+1] = True
+      padding_mask[0][relevancy_indices[:masking_index]] = True
 
       #The coordinates extracted from the PDB file need to be processed by the Batch Converter to get them into the correct format
       masked_input_coords, masked_confidence, _ = get_model_inputs(alphabet, masked_coords, device)
@@ -233,6 +236,6 @@ def get_averaged_bhattacharyya_distances_padding_mask(model, alphabet, sampled_s
       masked_probs = torch.nn.functional.softmax(logits, dim=-1)
       masked_probs = masked_probs[-1].to("cpu").detach().numpy()
 
-      distances[j][i+1] = bhattacharya(wt_probs[0], masked_probs[0])
+      distances[j][percentage] = bhattacharya(wt_probs[0], masked_probs[0])
     
   return(distances)
