@@ -223,8 +223,9 @@ def get_averaged_bhattacharyya_distances_padding_mask(model, alphabet, sampled_s
     distances[j] = {}
 
     for percentage, masking_index in zip(percentage_values, masking_indices):
-
-      padding_mask[0][relevancy_indices[:masking_index]] = True
+      
+      mask_locations = relevancy_indices[:masking_index]
+      padding_mask[0].index_fill_(0, mask_locations, True)
 
       #The coordinates extracted from the PDB file need to be processed by the Batch Converter to get them into the correct format
       masked_input_coords, masked_confidence, _ = get_model_inputs(alphabet, masked_coords, device)
