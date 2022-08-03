@@ -222,7 +222,7 @@ def get_averaged_bhattacharyya_distances_padding_mask(model, alphabet, sampled_s
 
     distances[j] = {}
 
-    for percentage, masking_index in zip(percentage_values, masking_indices):
+    for percentage, masking_index in zip(percentage_values.tolist(), masking_indices.tolist()):
       
       mask_locations = relevancy_indices[:masking_index]
       padding_mask[0].index_fill_(0, mask_locations, True)
