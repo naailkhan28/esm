@@ -6,6 +6,7 @@
 import argparse
 from secrets import token_urlsafe
 from typing import Any, Dict, List, Optional, Tuple, NamedTuple
+from collections import defaultdict
 import torch
 from torch import nn
 from torch import Tensor
@@ -238,13 +239,13 @@ class GVPTransformerModel(nn.Module):
         for idx, (residue, probability) in enumerate(zip(indices[0], values[0])):
             beam_starting_tensor = starting_tokens.clone()
             beam_starting_tensor[0, 1] = residue
-            beams[idx] = (beam_starting_tensor, torch.log(probability))
+            beams[idx] = (beam_starting_tensor, torch.log(probability).item())
         
         #Decode one token at a time, across all beams
         for i in range(2, starting_tokens.shape[1]):
             
             #Store all possible beams at this step in a dictionary
-            all_possible_beams = {}
+            all_possible_beams = defaultdict(list)
 
             for beam in beams.keys():
 
@@ -264,9 +265,9 @@ class GVPTransformerModel(nn.Module):
                 for residue, probability in zip(indices[0, :beam_size], probabilities[0, :beam_size]):
                     new_beam_tensor = prev_tokens.clone()
                     new_beam_tensor[:, i] = residue
-                    new_log_prob = log_prob + torch.log(probability)
+                    new_log_prob = log_prob + torch.log(probability).item()
 
-                    all_possible_beams[new_log_prob] = new_beam_tensor
+                    all_possible_beams[new_log_prob].append(new_beam_tensor)
             
             #Sort by keys (log probabilities) and add the top scoring beams to our initial beams dictionary
             sorted_beams = dict(sorted(all_possible_beams.items(), reverse=True))
@@ -274,7 +275,7 @@ class GVPTransformerModel(nn.Module):
             for beam, (log_probability, tokens) in enumerate(sorted_beams.items()):
                 if beam == beam_size:
                     break
-                beams[beam] = (tokens, log_probability)
+                beams[beam] = (tokens[0], log_probability)
         
 
         #Finally, pick the most likely beam by log probability and return it as an amino acid sequence
